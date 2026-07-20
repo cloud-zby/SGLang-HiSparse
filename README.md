@@ -9,7 +9,9 @@ sudo service docker restart
 ```bash
 sudo docker pull lmsysorg/sglang:v0.5.15
 sudo docker run -itd --shm-size 64g --gpus all -v $HOME/.cache/huggingface/:/root/.cache/huggingface -v /mnt/sda:/mnt/sda -v /home/zby/sglang:/workspace/sglang -w /workspace/sglang --ipc=host --network=host --privileged --name sglang_zby lmsysorg/sglang:v0.5.15 /bin/zsh
+# 进入容器
 sudo docker exec -it sglang_zby /bin/zsh
+# 停止和删除容器
 sudo docker stop sglang_zby
 sudo docker rm sglang_zby
 ```
@@ -18,6 +20,7 @@ sudo docker rm sglang_zby
 git config --global --add safe.directory /workspace/sglang
 pip install --upgrade pip
 pip install -e "python"
+pip install nvitop
 ```
 - 给LLM的提示词信息
 ```bash
@@ -36,6 +39,45 @@ modelscope download --dataset gliang1001/ShareGPT_V3_unfiltered_cleaned_split --
 ```
 - 运行
 ```bash
+# 启动Prefill实例
+python3 -m sglang.launch_server \
+    --model-path /mnt/sda/DeepSeek-V4-Flash \
+    --trust-remote-code \
+    --port 8000 \
+    --host 0.0.0.0 \
+    --context-length 81920 \
+    --chunked-prefill-size 65536 \
+    --tp-size 1 \
+    --mem-fraction-static 0.85 \
+    --disaggregation-mode prefill \
+    --disaggregation-ib-device mlx5_0,mlx5_1 \
+    --disaggregation-bootstrap-port 8998 \
+    --nnodes 1 --node-rank 0 \
+    --cpu-offload-gb 650 \
+    --offload-group-size 4 \
+    --offload-num-in-group 2 \
+    --offload-mode cpu
+# 启动Decode实例
+python3 -m sglang.launch_server \
+    --model-path /mnt/sda/DeepSeek-V4-Flash \
+    --trust-remote-code \
+    --port 8000 \
+    --host 0.0.0.0 \
+    --context-length 81920 \
+    --tp-size 1 \
+    --mem-fraction-static 0.85 \
+    --disable-radix-cache \
+    --disaggregation-mode decode \
+    --disaggregation-ib-device mlx5_0,mlx5_1 \
+    --prefill-addr 10.0.0.1:8998 \
+    --nnodes 1 --node-rank 0 \
+    --enable-hisparse \
+    --hisparse-config='{"top_k": 2048, "device_buffer_size": 6144, "host_to_device_ratio": 10, "swap_in_block_size": 960}' \
+    --cpu-offload-gb 650 \
+    --offload-group-size 4 \
+    --offload-num-in-group 2 \
+    --offload-mode cpu
+# 启动Benchmark测试
 python3 -m sglang.bench_serving \
     --backend sglang \
     --dataset-path /workspace/sglang/dataset/ShareGPT_V3_unfiltered_cleaned_split/ShareGPT_V3_unfiltered_cleaned_split.json \

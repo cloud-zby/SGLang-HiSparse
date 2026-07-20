@@ -762,6 +762,44 @@ class HiSparseCoordinator:
             device_module.current_stream().wait_stream(self.decode_producer_stream)
         self.wait_for_pending_backup()
 
+        # --- HiSparse debug logging ---
+        import time
+
+        # Total tokens inferred (input + generated output).
+        total_tokens = len(req.origin_input_ids) + len(req.output_ids)
+        # KV tokens stored on host (with C4 compression if applicable).
+        host_token_count = self.host_token_len(req.kv_allocated_len)
+        # Per-token (compressed) per-layer KV size in bytes.
+        req_host_bytes = (
+            host_token_count
+            * self.item_size_bytes
+            * self.mem_pool_device.layer_num
+        )
+        req_host_gb = req_host_bytes / (1024**3)
+
+        # Total host buffer usage across all requests.
+        used_host_slots = self.mem_pool_host.size - self.mem_pool_host.available_size()
+        total_host_gb = (
+            used_host_slots
+            * self.item_size_bytes
+            * self.mem_pool_device.layer_num
+            / (1024**3)
+        )
+
+        now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+        logger.info(
+            "HiSparse: [%s] req=%s finished, total_tokens=%d, kv_allocated_len=%d, "
+            "host_token_count=%d, req_host_storage=%.4f GB, total_host_used=%.4f GB",
+            now_str,
+            req.rid,
+            total_tokens,
+            req.kv_allocated_len,
+            host_token_count,
+            req_host_gb,
+            total_host_gb,
+        )
+        # -----------------------------
+
         # Use kv_allocated_len (not seqlen): under speculative decoding the
         # allocator can over-allocate beyond the committed seqlen, and those
         # extra slots may carry stale mapping entries pointing at buffer slots
