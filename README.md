@@ -5,16 +5,16 @@ sudo groupadd docker
 sudo gpasswd -a $USER docker
 sudo service docker restart
 ```
-- 配置网络代理，参考文档[docs-1](https://clash.guide/clash-for-linux.html) [docs-2](https://dash.pqjc.site/dashboard)
+- 配置网络代理，参考文档[docs-1](https://clash.guide/clash-for-linux.html)
 ```bash
 sudo apt update && sudo apt install -y curl tar unzip xz-utils procps   # 安装依赖
 git clone --branch master --depth 1 https://gh-proxy.org/https://github.com/nelvko/clash-for-linux-install.git && cd clash-for-linux-install && bash install.sh # 安装
-clashsub add "你的订阅地址" # 订阅地址通过docs-2获取
+clashsub add "你的订阅地址" # 订阅地址通过(https://dash.pqjc.site/dashboard)获取
 clashsub ls # 查看订阅列表
-clashsub use 1  # 启用第 1 个订阅
+clashsub use 1  # 启用第1个订阅
 clashsub update # 更新当前订阅
-clashon # 启动内核 + 设置系统代理
-clashoff    # 关闭内核 + 取消系统代理
+clashon # 启动内核+设置系统代理
+clashoff    # 关闭内核+取消系统代理
 # 设置git代理
 echo $http_proxy    # 127.0.0.1:7890
 echo $https_proxy
