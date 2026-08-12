@@ -49,9 +49,9 @@ from typing import List, Optional
 # Access method family (the three ways to reach storage from GPU memory)
 # ---------------------------------------------------------------------------
 class AccessMethod(IntEnum):
-    CPU = 0    # 方式三: command + data both through CPU bounce buffer
-    GDS = 1    # 方式二: CPU issues command, data GPU<->storage direct
-    SCADA = 2  # 方式一: GPU threads drive NVMe; CPU O(1) per batch (placeholder)
+    CPU = 0    # 方式三（Naive）: command + data both through CPU bounce buffer
+    GDS = 1    # 方式二（[GDS](https://docs.nvidia.com/gpudirect-storage)）: CPU issues command, data GPU<->storage direct
+    SCADA = 2  # 方式一（[Tutti](https://github.com/xPU-IO/Tutti.git)）: GPU threads drive NVMe; CPU O(1) per batch (placeholder)
 
 
 # ---------------------------------------------------------------------------
