@@ -9,6 +9,7 @@ sudo service docker restart
 ```bash
 sudo apt update && sudo apt install -y curl tar unzip xz-utils procps   # 安装依赖
 git clone --branch master --depth 1 https://gh-proxy.org/https://github.com/nelvko/clash-for-linux-install.git && cd clash-for-linux-install && bash install.sh # 安装
+clashupgrade -r # 升级内核
 clashsub add "你的订阅地址" # 订阅地址通过(https://dash.pqjc.site/dashboard)获取
 clashsub ls # 查看订阅列表
 clashsub use 1  # 启用第1个订阅
