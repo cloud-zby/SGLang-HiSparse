@@ -62,9 +62,10 @@ python3 -c "import sglang_router; print(sglang_router)"
 ```bash
 pip install nvitop
 ```
-- 安装Nvidia SCADA
+- 安装Nvidia SCADA ([Tutti](https://github.com/xPU-IO/Tutti.git))
 ```bash
 # TODO
+
 ```
 - 下载模型
 ```bash
