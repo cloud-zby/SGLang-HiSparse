@@ -214,15 +214,15 @@ pkill -f sglang
         --hisparse-config='{"top_k": 2048, "device_buffer_size": 6144, "host_to_device_ratio": 2, "swap_in_block_size": 960}'
     ```
     - 启动Router（放在dev1节点，用IB地址指向prefill/decode）
-```bash
-python3 -m sglang_router.launch_router \
-    --pd-disaggregation \
-    --prefill http://10.0.0.1:30001 \
-    --decode http://10.0.0.2:30002 \
-    --host 0.0.0.0 \
-    --port 30000 \
-    --model-path /mnt/sda/zby/DeepSeek-V4-Flash-trim8
-```
+    ```bash
+    python3 -m sglang_router.launch_router \
+        --pd-disaggregation \
+        --prefill http://10.0.0.1:30001 \
+        --decode http://10.0.0.2:30002 \
+        --host 0.0.0.0 \
+        --port 30000 \
+        --model-path /mnt/sda/zby/DeepSeek-V4-Flash-trim8
+    ```
 - 启动Benchmark测试（在dev1节点上）
 ```bash
 # 先CURL一个请求验证正确性
