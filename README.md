@@ -15,6 +15,11 @@ clashsub use 1  # 启用第 1 个订阅
 clashsub update # 更新当前订阅
 clashon # 启动内核 + 设置系统代理
 clashoff    # 关闭内核 + 取消系统代理
+# 设置git代理
+echo $http_proxy    # 127.0.0.1:7890
+echo $https_proxy
+git config --global http.proxy http://127.0.0.1:7890
+git config --global https.proxy http://127.0.0.1:7890
 ```
 - 进入容器
 ```bash
