@@ -79,6 +79,16 @@ def _parse_sparse_config(server_args) -> SparseConfig:
     device_buffer_size = extra_config.pop("device_buffer_size", 2 * top_k)
     host_to_device_ratio = extra_config.pop("host_to_device_ratio", 2)
     swap_in_block_size = extra_config.pop("swap_in_block_size", 960)
+    offload_backend = extra_config.pop("offload_backend", "cpudram")
+    offload_path = extra_config.pop("offload_path", "/tmp/hisparse_ssd")  # NVMe dir for ssd backends
+
+    assert offload_backend in (
+        "cpudram",
+        "gds",
+        "scada",
+        "cpu_ssd",
+        "cpu-bypass",
+    ), f"Unknown offload_backend: {offload_backend!r} (expected cpudram|gds|scada|cpu_ssd|cpu-bypass)"
 
     if device_buffer_size < top_k:
         raise ValueError(
@@ -99,6 +109,8 @@ def _parse_sparse_config(server_args) -> SparseConfig:
     page_size = extra_config.pop("page_size", None)
 
     return SparseConfig(
+        offload_backend=offload_backend,
+        offload_path=offload_path,
         top_k=top_k,
         device_buffer_size=device_buffer_size,
         host_to_device_ratio=host_to_device_ratio,

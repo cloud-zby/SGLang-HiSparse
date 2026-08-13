@@ -865,6 +865,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             hisparse_top_k = getattr(
                 self.model_config.hf_text_config, "index_topk", hisparse_cfg.top_k
             )
+            offload_path = hisparse_cfg.offload_path
             self.hisparse_coordinator = HiSparseCoordinator(
                 req_to_token_pool=self.req_to_token_pool,
                 token_to_kv_pool_allocator=self.token_to_kv_pool_allocator,
@@ -878,6 +879,8 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 ),
                 host_to_device_ratio=hisparse_cfg.host_to_device_ratio,
                 swap_in_block_size=hisparse_cfg.swap_in_block_size,
+                offload_backend=hisparse_cfg.offload_backend,
+                offload_path=offload_path,
             )
 
         self.init_routed_experts_capturer()

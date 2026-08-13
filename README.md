@@ -22,14 +22,82 @@ echo $https_proxy
 git config --global http.proxy http://127.0.0.1:7890
 git config --global https.proxy http://127.0.0.1:7890
 ```
+- 安装Nvidia SCADA ([Tutti](https://github.com/xPU-IO/Tutti.git))
+```bash
+# TODO
+
+```
+- 安装Nvidia GDS ([GDS](https://github.com/NVIDIA/gds-nvidia-fs.git) [Docker](https://jinhuix.github.io/posts/GPUDirect-Storage-GDS-%E5%AE%89%E8%A3%85%E4%B8%8E%E4%BD%BF%E7%94%A8/))
+```bash
+# 安装MLNX_OFED （容器外）
+wget https://content.mellanox.com/ofed/MLNX_OFED-24.10-5.1.6.1/MLNX_OFED_LINUX-24.10-5.1.6.1-ubuntu24.04-x86_64.tgz -O MLNX_OFED_LINUX-24.10-5.1.6.1-ubuntu24.04-x86_64.tgz
+tar -zxvf MLNX_OFED_LINUX-24.10-5.1.6.1-ubuntu24.04-x86_64.tgz
+cd MLNX_OFED_LINUX-24.10-5.1.6.1-ubuntu24.04-x86_64
+sudo ./mlnxofedinstall --without-fw-update --force
+cd ../
+# 安装GDS
+git clone https://github.com/NVIDIA/gds-nvidia-fs.git
+cd gds-nvidia-fs/src
+export CONFIG_MOFED_VERSION=$(ofed_info -s | cut -d '-' -f 2)
+sudo make
+sudo rmmod nvidia-fs
+sudo insmod nvidia-fs.ko
+# 创建结点
+sudo mknod /dev/nvidia-fs c 504 0
+sudo chmod 666 /dev/nvidia-fs
+ls -l /dev/nvidia-fs
+cd ../../
+# 宿主 nvidia-fs 驱动版本, 本机 = 2.29.4
+cat /sys/module/nvidia_fs/version  
+# 本机的 CUDA 里已含匹配版本(libcufile 1.17.1)。若驱动版本变化，以 /usr/local/cuda*/lib64 中实际文件为准。
+CUDALIB=$(dirname $(readlink -f /usr/local/cuda/lib64/libcufile.so.0))
+sudo mkdir -p /mnt/sda/gds-lib
+sudo cp -a "$CUDALIB"/libcufile.so.1.17.1          /mnt/sda/gds-lib/
+sudo cp -a "$CUDALIB"/libcufile_rdma.so.1.17.1     /mnt/sda/gds-lib/
+sudo ln -sf libcufile.so.1.17.1                    /mnt/sda/gds-lib/libcufile.so.0
+sudo ln -sf libcufile.so.1.17.1                    /mnt/sda/gds-lib/libcufile.so
+sudo ln -sf libcufile_rdma.so.1.17.1               /mnt/sda/gds-lib/libcufile_rdma.so.1
+sudo ln -sf libcufile_rdma.so.1.17.1               /mnt/sda/gds-lib/libcufile_rdma.so
+ls -l /mnt/sda/gds-lib/
+# 打包 GDS 诊断工具(gdscheck/gdsio/gdscp, 随 CUDA 自带)到同一持久盘, 供容器 bind mount
+sudo mkdir -p /mnt/sda/gds-tools
+sudo cp -a /usr/local/cuda*/gds/tools/gdscheck      /mnt/sda/gds-tools/
+sudo cp -a /usr/local/cuda*/gds/tools/gdscheck.py   /mnt/sda/gds-tools/
+sudo cp -a /usr/local/cuda*/gds/tools/gdsio         /mnt/sda/gds-tools/
+sudo cp -a /usr/local/cuda*/gds/tools/gdscp         /mnt/sda/gds-tools/
+sudo chmod +x /mnt/sda/gds-tools/*
+# 验证GDS在容器内可用
+docker exec sglang_zby python3 -m ssd_offload.tests.test_ssd_offload --method gds --data-dir /tmp/gds_verify   # 应见 roundtrip: PASS
+# 关闭IOMMU
+sudo vim /etc/default/grub
+# 找到`GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"`改为`GRUB_CMDLINE_LINUX_DEFAULT="quiet splash intel_iommu=off"`，保存退出
+sudo update-grub
+sudo reboot # 重启
+```
 - 进入容器
 ```bash
 sudo docker pull lmsysorg/sglang:v0.5.15
-sudo docker run -itd --shm-size 64g --gpus all -v $HOME/.cache/huggingface/:/root/.cache/huggingface -v /mnt/sda:/mnt/sda -v /home/zby/sglang:/workspace/sglang -w /workspace/sglang --ipc=host --network=host --privileged --name sglang_zby lmsysorg/sglang:v0.5.15 /bin/zsh
+sudo docker run -itd \
+  --shm-size 64g --gpus all \
+  --cap-add SYS_ADMIN --privileged \
+  --ipc=host --network=host \
+  -v $HOME/.cache/huggingface/:/root/.cache/huggingface \
+  -v /mnt/sda:/mnt/sda \
+  -v /home/zby/sglang:/workspace/sglang \
+  -v /dev/nvidia-fs:/dev/nvidia-fs \
+  -v /dev/infiniband:/dev/infiniband \
+  -v /mnt/sda/gds-lib:/opt/gds/lib:ro \
+  -v /mnt/sda/gds-tools:/opt/gds/tools:ro \
+  -e LD_LIBRARY_PATH=/opt/gds/lib:/usr/local/cuda/lib64 \
+  -w /workspace/sglang \
+  --name sglang_zby \
+  lmsysorg/sglang:v0.5.15 /bin/zsh
 # 进入容器
 sudo docker exec -it sglang_zby /bin/zsh
-# 停止和删除容器
+/opt/gds/tools/gdscheck -p  # 容器内gdscheck
+# 停止容器
 sudo docker stop sglang_zby
+# 删除容器
 sudo docker rm sglang_zby
 ```
 - 安装SGLang（代码基于SGLang的release/v0.5.15分支）
@@ -67,11 +135,6 @@ python3 -c "import sglang_router; print(sglang_router)"
 - 其他安装
 ```bash
 pip install nvitop
-```
-- 安装Nvidia SCADA ([Tutti](https://github.com/xPU-IO/Tutti.git))
-```bash
-# TODO
-
 ```
 - 下载模型
 ```bash
@@ -179,7 +242,16 @@ pkill -f sglang
     docker save -o /mnt/sda/zby/my_image.tar lmsysorg/sglang:v0.5.15
     scp /mnt/sda/zby/my_image.tar zby@n02:~/
     docker load -i ~/my_image.tar
-    sudo docker run -itd --shm-size 64g --gpus all -v $HOME/.cache/huggingface/:/root/.cache/huggingface -v /mnt/sda:/mnt/sda -v /home/zby/sglang:/workspace/sglang -w /workspace/sglang --ipc=host --network=host --privileged --name sglang_zby lmsysorg/sglang:v0.5.15 /bin/zsh
+    sudo docker run -itd --shm-size 64g --gpus all \
+      -v $HOME/.cache/huggingface/:/root/.cache/huggingface \
+      -v /mnt/sda:/mnt/sda \
+      -v /home/zby/sglang:/workspace/sglang \
+      -v /dev/nvidia-fs:/dev/nvidia-fs \
+      -v /dev/infiniband:/dev/infiniband \
+      -v /mnt/sda/gds-lib:/opt/gds/lib:ro \
+      -e LD_LIBRARY_PATH=/opt/gds/lib:/usr/local/cuda/lib64 \
+      -w /workspace/sglang --ipc=host --network=host --privileged \
+      --name sglang_zby lmsysorg/sglang:v0.5.15 /bin/zsh
     sudo docker exec -it sglang_zby /bin/zsh
     # 然后安装SGLang
     git config --global --add safe.directory /workspace/sglang
@@ -213,6 +285,8 @@ pkill -f sglang
         --disable-flashinfer-autotune \
         --enable-hisparse \
         --hisparse-config='{"top_k": 2048, "device_buffer_size": 6144, "host_to_device_ratio": 2, "swap_in_block_size": 960}'
+        # "offload_backend": "cpu-bypass", "offload_path": "/hisparse_kv"
+        # "offload_backend": "gds", "offload_path": "/hisparse_kv"
     ```
     - 启动Router（放在dev1节点，用IB地址指向prefill/decode）
     ```bash
@@ -257,3 +331,5 @@ python3 -m sglang.bench_serving \
 HiSparse (Hierarchical Sparse Attention) reduces per-request GPU memory consumption during the decode phase by maintaining only a small “hot” KV buffer on GPU while keeping complete KV data in CPU pinned memory. Combined with PD disaggregation, it enables significantly higher decode concurrency.
 Prerequisites: HiSparse works with models that use DeepSeek Sparse Attention (DSA) architectures (e.g., DeepSeek-V3.2, GLM-5.1) and DeepSeek V4. These models natively select a subset of tokens for attention, making it possible to keep only the top-k KV on GPU while storing the full KV in host memory — without accuracy loss. Additionally, HiSparse currently requires PD disaggregation mode and is enabled on the decode instance only. Why HiSparse? In long-context LLM inference, each decoding request holds a full-length KV cache on GPU, limiting the number of concurrent requests a decode instance can serve. HiSparse addresses this by: Reducing GPU memory per request: Each request occupies only a fixed-size device buffer (e.g., 4KB tokens) instead of the full sequence length. On-demand swap-in: A CUDA kernel dynamically loads the top-k most relevant KV entries from host memory based on attention scores. Transparent to prefill: HiSparse is entirely a decode-side optimization; the prefill instance requires no changes. Design Overview Decode Workflow Each decode step follows this flow: Forward decode — generate the next token; Top-k selection — select the most relevant token positions via attention scores; Swap-in — the CUDA kernel loads top-k KV entries from host to device buffer:; Short sequences (seq_len ≤ device_buffer_size): fast path, all KV already in buffer; Long sequences: hit detection → LRU reordering → miss handling (host → device copy); Decode attention — compute attention using the top-k device locations; Eager backup — asynchronously copy the previous token’s KV from device to host. PD Disaggregation Integration (Direct-to-Host): In PD disaggregation mode, the prefill instance transfers KV cache directly into the decode instance’s host pool via RDMA, bypassing the GPU entirely on the decode side. This eliminates the transient GPU memory spike during KV transfer and removes the staging DMA step. For DeepSeek V4, the direct-to-host path writes only C4 KV into the decode host pool. The c4_indexer and C128 KV remain device-to-device transfers. 
 ```
+
+

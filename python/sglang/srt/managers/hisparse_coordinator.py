@@ -58,6 +58,8 @@ class HiSparseCoordinator:
         tp_group,
         host_to_device_ratio: int = 2,
         swap_in_block_size: int = 960,
+        offload_backend: str = "cpudram",
+        offload_path: str = "/tmp/hisparse_ssd",
     ):
         self.req_to_token_pool = req_to_token_pool
         self.token_to_kv_pool_allocator = token_to_kv_pool_allocator
@@ -66,6 +68,7 @@ class HiSparseCoordinator:
         self.device = device
         self.swap_in_block_size = swap_in_block_size
         self.compress_ratio = self.token_to_kv_pool_allocator.compress_ratio
+        self.offload_backend = offload_backend
 
         self.is_dsv4_hisparse = isinstance(
             self.token_to_kv_pool_allocator, DeepSeekV4HiSparseTokenToKVPoolAllocator
@@ -106,6 +109,21 @@ class HiSparseCoordinator:
                 override_kv_cache_dim=self.mem_pool_device.kv_cache_dim,
             )
             self.item_size_bytes = self.mem_pool_host.token_stride_size
+
+        # If an SSD-backed offload was requested, wrap the (DRAM) host pool so
+        # the authoritative full KV is persisted to NVMe via ssd_offload while
+        # the swap-in kernel still reads the device-addressable DRAM shadow.
+        if offload_backend != "cpudram":
+            from sglang.srt.mem_cache.hisparse_ssd_pool import SsdHostPoolProxy
+
+            self.mem_pool_host = SsdHostPoolProxy(
+                dram_pool=self.mem_pool_host,
+                offload_backend=offload_backend,
+                offload_path=offload_path,
+                item_size_bytes=self.item_size_bytes,
+                layer_num=self.mem_pool_device.layer_num,
+            )
+
         self.page_size = self.mem_pool_device.page_size
 
         max_num_req_slots = req_to_token_pool.req_to_token.shape[0]

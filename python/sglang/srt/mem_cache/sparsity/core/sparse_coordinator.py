@@ -55,6 +55,20 @@ class RequestTrackers:
 class SparseConfig:
     """Configuration for sparse attention."""
 
+    # Offload backend selection. Controls where the "host-side" KV cache
+    # (the full persistent copy) lives:
+    #   - "cpudram": existing behavior — CPU pinned DRAM host pool.
+    #   - "gds"    : use the ssd_offload GDS backend (GPU Direct Storage,
+    #                cuFile). On hosts without PCI P2P cuFile falls back to
+    #                its internal compat mode automatically.
+    #   - "scada"  : use the ssd_offload SCADA backend (GPU-driven NVMe,
+    #                Tutti-style). Only supported on dedicated-NVMe hosts.
+    #   - "cpu_ssd": use the ssd_offload CPU backend (persist KV to an NVMe
+    #                file via O_DIRECT writes; a device-visible DRAM shadow is
+    #                kept so the swap-in kernel still reads from addressable
+    #                host memory).
+    offload_backend: str = "cpudram"
+    offload_path: str = "/tmp/hisparse_ssd"
     top_k: int = 2048
     device_buffer_size: int = 4096
     host_to_device_ratio: int = 2

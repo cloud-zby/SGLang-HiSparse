@@ -290,5 +290,8 @@ dataset
 ShareGPT_V3_unfiltered_cleaned_split.json
 */ShareGPT_V3_unfiltered_cleaned_split.json
 clash-for-linux-install
-
-
+*.tgz
+*/MLNX_OFED_LINUX-24.10-5.1.6.1-ubuntu24.04-x86_64
+.gds_test
+MLNX_OFED_LINUX-24.10-5.1.6.1-ubuntu24.04-x86_64
+.gds_diag

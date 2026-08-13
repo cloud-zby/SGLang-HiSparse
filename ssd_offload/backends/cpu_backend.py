@@ -127,6 +127,15 @@ class CpuSsdOffload(SsdOffload):
         try:
             staging = _AlignedBuffer(total)
             if write:
+                # Read-modify-write: preserve bytes in the aligned block that
+                # are OUTSIDE the requested [seg, seg+length) window. A plain
+                # aligned-buffer write would clobber neighbouring tokens that
+                # share the same O_DIRECT block (critical for HiSparse, where
+                # per-token payloads are much smaller than the block size).
+                # If the file region is not yet allocated (fresh file), treat
+                # the missing tail as zeros (tolerant read).
+                if total > length:
+                    self._pread_all_tolerant(fd, staging.address, start, total)
                 ctypes.memmove(staging.address + seg, buf_addr + buf_off, length)
                 self._pwrite_all(fd, staging.address, start, total)
                 os.fsync(fd)
@@ -136,6 +145,16 @@ class CpuSsdOffload(SsdOffload):
         except OSError as exc:
             return f"{'write' if write else 'read'} off={file_off} len={length}: {exc}"
         return None
+
+    def _pread_all_tolerant(self, fd, addr, offset, length):
+        """Like _pread_all but tolerates short reads (zeros out the rest)."""
+        done = 0
+        while done < length:
+            data = os.pread(fd, length - done, offset + done)
+            if not data:
+                break  # EOF: leave remaining bytes as zero
+            ctypes.memmove(addr + done, data, len(data))
+            done += len(data)
 
     @staticmethod
     def _pread_all(fd, addr, offset, length):
